@@ -1,0 +1,14 @@
+{
+  "name": "chess2.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "cd apps/mobile && expo start",
+    "android": "cd apps/mobile && expo run:android",
+    "ios": "cd apps/mobile && expo run:ios",
+    "lint": "cd apps/mobile && eslint ."
+  }
+}
