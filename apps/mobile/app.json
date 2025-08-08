@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Chess 2.0",
+    "slug": "chess20",
+    "scheme": "chess20",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111827"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#111827"
+      },
+      "permissions": []
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-constants",
+      "expo-haptics",
+      "react-native-reanimated/plugin"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "placeholder"
+      }
+    }
+  }
+}
