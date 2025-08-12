@@ -2,11 +2,18 @@
 // This is a self-contained module to keep UI logic decoupled.
 
 let THREE;
+let OBJLoader, MTLLoader;
 let scene, camera, renderer, raycaster, mouse;
 let boardGroup, piecesGroup, highlightGroup;
+let anim = null; // current animation state
+let lastAnimSig = null; // dedupe consecutive animations
 let containerEl;
 let boardSize = 14; // will be reset from state
 let callbacks = { onSquareClick: null };
+let lastStateRef = null; // keep last state so we can refresh pieces after async loads
+
+// Asset cache: store loaded templates by type ('P','R','N','B','Q','K')
+const modelCache = new Map(); // type => Promise<{template: THREE.Group, desiredHeight:number}>
 
 const tileSize = 1; // world units per square
 const tileGap = 0.02; // small gap for grid lines
@@ -30,6 +37,7 @@ function makePieceMaterial(col, level) {
     return mat;
 }
 
+// ---- Primitive fallback meshes (used until assets load) ----
 function meshPawn(col, level) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.5, 24), makePieceMaterial(col, level));
@@ -110,8 +118,16 @@ function meshKing(col, level) {
     return g;
 }
 
+// Attempt to create a mesh from the loaded asset; if not yet loaded, return primitive fallback and trigger load.
 function meshForPiece(p) {
     const t = p.t; const col = p.col; const lv = p.u?.level || 0;
+    const asset = cloneAssetIfReady(t, col, lv);
+    if (asset) return asset;
+    // Trigger load in background and return fallback
+    ensurePieceModel(t).then(() => {
+        // Once loaded, refresh pieces if we still have a state
+        if (lastStateRef) rebuildPieces(lastStateRef);
+    });
     switch (t) {
         case 'P': return meshPawn(col, lv);
         case 'R': return meshRook(col, lv);
@@ -120,6 +136,125 @@ function meshForPiece(p) {
         case 'Q': return meshQueen(col, lv);
         case 'K': return meshKing(col, lv);
     }
+}
+
+function cloneAssetIfReady(type, col, level) {
+    const rec = modelCache.get(type);
+    if (!rec || !rec.__ready) return null;
+    const template = rec.template.clone(true);
+    // Team tint: subtly darken black side; keep white as-is
+    template.traverse((obj) => {
+        if (obj.isMesh && obj.material) {
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((m) => {
+                if (m.color && col === 'b') {
+                    // slight darkening
+                    m.color.multiplyScalar(0.85);
+                }
+                if (m.emissive && level > 0) {
+                    m.emissive.set(level >= 3 ? 0xffd166 : level === 2 ? 0x2be1a7 : 0x7c9cff);
+                    m.emissiveIntensity = level >= 3 ? 0.18 : 0.12;
+                }
+            });
+        }
+    });
+    return template;
+}
+
+function normalizeModel(group, desiredHeight = 1.1) {
+    // Scale to target height
+    const box = new THREE.Box3().setFromObject(group);
+    const size = new THREE.Vector3(); box.getSize(size);
+    if (size.y > 0) {
+        const scale = desiredHeight / size.y;
+        group.scale.setScalar(scale);
+    }
+    // Compute offsets and wrap so we can place the outer group freely later
+    const box2 = new THREE.Box3().setFromObject(group);
+    const min = new THREE.Vector3(); box2.getMin(min);
+    const center = new THREE.Vector3(); box2.getCenter(center);
+    const wrapper = new THREE.Group();
+    // Lift to tile top and center X/Z by applying offsets to the inner model
+    group.position.set(-center.x, (0.06 - min.y), -center.z);
+    wrapper.add(group);
+    return wrapper;
+}
+
+function assetInfo(type) {
+    switch (type) {
+        case 'P': return {
+            dir: 'assets/working_pieces/pawn/',
+            obj: 'Pawn_Side_A_V2_L3.obj',
+            mtl: 'Pawn_Side_A_V2_L3.mtl',
+            height: 1.0
+        };
+        case 'R': return {
+            dir: 'assets/working_pieces/rook/',
+            obj: 'Rook_Side_A_V2_l1.obj',
+            mtl: 'Rook_Side_A_V2_l1.mtl',
+            height: 1.05
+        };
+        case 'N': return {
+            dir: 'assets/working_pieces/knight/',
+            obj: 'Knight_Side_A_v2_l1.obj',
+            mtl: 'Knight_Side_A_v2_l1.mtl',
+            height: 1.05
+        };
+        case 'B': return {
+            dir: 'assets/working_pieces/bishop/',
+            obj: 'Bishop_V2_l1.obj',
+            mtl: 'Bishop_V2_l1.mtl',
+            height: 1.1
+        };
+        case 'Q': return {
+            dir: 'assets/working_pieces/queen/',
+            obj: 'Queen_Side_A_V2_l1.obj',
+            mtl: 'Queen_Side_A_V2_l1.mtl',
+            height: 1.2
+        };
+        case 'K': return {
+            dir: 'assets/working_pieces/king/',
+            obj: 'King_Side_A_V2_l1.obj',
+            mtl: 'King_Side_A_V2_l1.mtl',
+            height: 1.28
+        };
+    }
+    return null;
+}
+
+async function ensureLoaders() {
+    if (OBJLoader && MTLLoader) return;
+    const modMTL = await import('https://unpkg.com/three@0.158.0/examples/jsm/loaders/MTLLoader.js');
+    const modOBJ = await import('https://unpkg.com/three@0.158.0/examples/jsm/loaders/OBJLoader.js');
+    MTLLoader = modMTL.MTLLoader;
+    OBJLoader = modOBJ.OBJLoader;
+}
+
+async function ensurePieceModel(type) {
+    if (modelCache.has(type)) return modelCache.get(type);
+    const info = assetInfo(type);
+    if (!info) return Promise.resolve(null);
+    const promise = (async () => {
+        await ensureLoaders();
+        // Load MTL first
+        const mtlLoader = new MTLLoader();
+        mtlLoader.setMaterialOptions({ side: THREE.FrontSide });
+        mtlLoader.setResourcePath(info.dir);
+        mtlLoader.setPath(info.dir);
+        const materials = await mtlLoader.loadAsync(info.mtl);
+        materials.preload();
+        const objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(info.dir);
+        const group = await objLoader.loadAsync(info.obj);
+        // Normalize scale and origin into a wrapper
+        const template = normalizeModel(group, info.height);
+        return { template, desiredHeight: info.height };
+    })();
+    // Track readiness to allow clone without awaiting then-chains repeatedly
+    promise.then((rec) => { promise.__ready = true; Object.assign(promise, rec); }).catch(() => { /* noop */ });
+    modelCache.set(type, promise);
+    return promise;
 }
 
 async function ensureThree() {
@@ -132,16 +267,13 @@ export async function init3D(container, state, cb = {}) {
     callbacks = { ...callbacks, ...cb };
     containerEl = container;
     boardSize = state.board.length;
+    lastStateRef = state;
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b1020);
     const w = container.clientWidth || 800;
     const h = container.clientHeight || 800;
-    camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 200);
-    // Position to see the whole board; distance scales with board size
-    const dist = Math.max(10, boardSize * 0.9);
-    camera.position.set(dist * 0.55, dist, dist * 0.55);
-    camera.lookAt(0, 0, 0);
+    setupOrthoCamera(w, h);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -195,8 +327,7 @@ function onResize() {
     if (!renderer || !camera || !containerEl) return;
     const w = containerEl.clientWidth;
     const h = containerEl.clientHeight;
-    camera.aspect = (w || 1) / (h || 1);
-    camera.updateProjectionMatrix();
+    updateOrthoCamera(w, h);
     renderer.setSize(w, h);
 }
 
@@ -220,7 +351,14 @@ function pickTile() {
 
 export function update3D(state) {
     boardSize = state.board.length;
-    // Rebuild pieces if needed
+    lastStateRef = state;
+    rebuildPieces(state);
+    // Attempt to animate the last move (ghost tween)
+    maybeStartMoveAnim(state);
+}
+
+function rebuildPieces(state) {
+    if (!piecesGroup) return;
     piecesGroup.clear();
     for (let r = 0; r < boardSize; r++) {
         for (let c = 0; c < boardSize; c++) {
@@ -240,6 +378,22 @@ export function update3D(state) {
 
 function animate() {
     requestAnimationFrame(animate);
+    // Advance animation if active
+    if (anim) {
+        const now = performance.now();
+        const t = Math.min(1, (now - anim.start) / anim.duration);
+        const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // easeInOutQuad
+        anim.ghost.position.x = anim.from.x + (anim.to.x - anim.from.x) * ease;
+        anim.ghost.position.z = anim.from.z + (anim.to.z - anim.from.z) * ease;
+        // subtle arc
+        anim.ghost.position.y = 0.0 + Math.sin(Math.PI * ease) * 0.25;
+        if (t >= 1) {
+            // finish
+            if (anim.target) anim.target.visible = true;
+            if (highlightGroup && anim.ghost) highlightGroup.remove(anim.ghost);
+            anim = null;
+        }
+    }
     renderer && renderer.render(scene, camera);
 }
 
@@ -251,4 +405,60 @@ export function dispose3D() {
     } catch { }
     renderer && renderer.dispose();
     scene = camera = renderer = null;
+}
+
+// ---- Camera helpers (top-down orthographic, board-aligned) ----
+function boardWorldHalfSpan() {
+    const spacing = tileSize + tileGap;
+    const full = spacing * (boardSize - 1) + tileSize;
+    // small margin
+    return full * 0.55; // 10% margin around (0.5 on each side approx)
+}
+
+function setupOrthoCamera(w, h) {
+    const aspect = (w || 1) / (h || 1);
+    const half = boardWorldHalfSpan();
+    const halfW = half * aspect;
+    camera = new THREE.OrthographicCamera(-halfW, halfW, half, -half, 0.1, 1000);
+    camera.position.set(0, 50, 0);
+    camera.up.set(0, 0, -1); // align +Z down the screen
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+}
+
+function updateOrthoCamera(w, h) {
+    if (!camera || !camera.isOrthographicCamera) return setupOrthoCamera(w, h);
+    const aspect = (w || 1) / (h || 1);
+    const half = boardWorldHalfSpan();
+    const halfW = half * aspect;
+    camera.left = -halfW;
+    camera.right = halfW;
+    camera.top = half;
+    camera.bottom = -half;
+    camera.updateProjectionMatrix();
+}
+
+// ---- Move animation (ghost tween) ----
+function maybeStartMoveAnim(state) {
+    const mv = state.lastMove;
+    if (!mv) return;
+    const sig = `${mv.from[0]},${mv.from[1]}->${mv.to[0]},${mv.to[1]}#${mv.piece?.col || ''}`;
+    if (sig === lastAnimSig) return;
+    lastAnimSig = sig;
+    // Find the target mesh at destination to hide during tween
+    let target = null;
+    for (const child of piecesGroup.children) {
+        if (child.userData && child.userData.r === mv.to[0] && child.userData.c === mv.to[1]) { target = child; break; }
+    }
+    if (!target) return;
+    const p = state.board[mv.to[0]][mv.to[1]];
+    if (!p) return;
+    const ghost = meshForPiece(p);
+    const s = target.scale?.x || 1; ghost.scale.setScalar(s);
+    const from = worldPos(mv.from[0], mv.from[1]);
+    const to = worldPos(mv.to[0], mv.to[1]);
+    ghost.position.set(from.x, 0.0, from.z);
+    if (highlightGroup) highlightGroup.add(ghost);
+    if (target) target.visible = false;
+    anim = { start: performance.now(), duration: 320, from, to, ghost, target };
 }
