@@ -35,32 +35,19 @@ export function initial(N = BOARD_SIZE) {
     const order = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
     const offset = Math.floor((N - order.length) / 2);
     for (let c = 0; c < N; c++) {
-        board[1][c] = { t: 'P', col: 'b', u: baseUpgrades('P'), moved: false };
-        board[N - 2][c] = { t: 'P', col: 'w', u: baseUpgrades('P'), moved: false };
+        // Place pawns only on inner files, excluding the outer two files on each side (e.g., a,b and m,n on 14x14)
+        const innerFile = c >= 2 && c <= N - 3;
+        if (innerFile) {
+            board[1][c] = { t: 'P', col: 'b', u: baseUpgrades('P'), moved: false };
+            board[N - 2][c] = { t: 'P', col: 'w', u: baseUpgrades('P'), moved: false };
+        }
         const oIdx = c - offset;
         if (oIdx >= 0 && oIdx < order.length) {
             board[0][c] = { t: order[oIdx], col: 'b', u: baseUpgrades(order[oIdx]), moved: false };
             board[N - 1][c] = { t: order[oIdx], col: 'w', u: baseUpgrades(order[oIdx]), moved: false };
         }
     }
-    // Add two extra pawns per side adjacent to each rook on the back ranks (outer edge squares next to rooks)
-    // Black back rank (row 0)
-    for (let c = 0; c < N; c++) {
-        const piece = board[0][c];
-        if (piece && piece.t === 'R' && piece.col === 'b') {
-            // Check adjacent squares; only place on empty squares (the outward side should be empty)
-            if (c - 1 >= 0 && !board[0][c - 1]) board[0][c - 1] = { t: 'P', col: 'b', u: baseUpgrades('P'), moved: false };
-            if (c + 1 < N && !board[0][c + 1]) board[0][c + 1] = { t: 'P', col: 'b', u: baseUpgrades('P'), moved: false };
-        }
-    }
-    // White back rank (row N-1)
-    for (let c = 0; c < N; c++) {
-        const piece = board[N - 1][c];
-        if (piece && piece.t === 'R' && piece.col === 'w') {
-            if (c - 1 >= 0 && !board[N - 1][c - 1]) board[N - 1][c - 1] = { t: 'P', col: 'w', u: baseUpgrades('P'), moved: false };
-            if (c + 1 < N && !board[N - 1][c + 1]) board[N - 1][c + 1] = { t: 'P', col: 'w', u: baseUpgrades('P'), moved: false };
-        }
-    }
+    // Removed extra pawns adjacent to rooks per user request
     return {
         board, turn: 'w', selected: null, moves: [], lastMove: null, pendingUpgrade: null, winner: null,
         pendingShield: null, shielded: null
