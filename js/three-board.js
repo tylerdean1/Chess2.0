@@ -142,22 +142,15 @@ function cloneAssetIfReady(type, col, level) {
     const rec = modelCache.get(type);
     if (!rec || !rec.__ready) return null;
     const template = rec.template.clone(true);
-    // Team tint: subtly darken black side; keep white as-is
-    template.traverse((obj) => {
-        if (obj.isMesh && obj.material) {
-            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-            mats.forEach((m) => {
-                if (m.color && col === 'b') {
-                    // slight darkening
-                    m.color.multiplyScalar(0.85);
-                }
-                if (m.emissive && level > 0) {
-                    m.emissive.set(level >= 3 ? 0xffd166 : level === 2 ? 0x2be1a7 : 0x7c9cff);
-                    m.emissiveIntensity = level >= 3 ? 0.18 : 0.12;
-                }
-            });
-        }
-    });
+    // Preserve provided materials/textures; optional: add light emissive sheen without changing base albedo
+    if (level > 0) {
+        template.traverse((obj) => {
+            if (obj.isMesh && obj.material && obj.material.emissive) {
+                obj.material.emissive.set(level >= 3 ? 0xffd166 : level === 2 ? 0x2be1a7 : 0x7c9cff);
+                obj.material.emissiveIntensity = level >= 3 ? 0.12 : 0.08;
+            }
+        });
+    }
     return template;
 }
 
@@ -174,8 +167,8 @@ function normalizeModel(group, desiredHeight = 1.1) {
     const min = new THREE.Vector3(); box2.getMin(min);
     const center = new THREE.Vector3(); box2.getCenter(center);
     const wrapper = new THREE.Group();
-    // Lift to tile top and center X/Z by applying offsets to the inner model
-    group.position.set(-center.x, (0.06 - min.y), -center.z);
+    // Lift to tile top (tile is 0.06 tall centered at 0, so top is y=0.03) and center X/Z by applying offsets to the inner model
+    group.position.set(-center.x, (0.03 - min.y), -center.z);
     wrapper.add(group);
     return wrapper;
 }
@@ -273,11 +266,13 @@ export async function init3D(container, state, cb = {}) {
     scene.background = new THREE.Color(0x0b1020);
     const w = container.clientWidth || 800;
     const h = container.clientHeight || 800;
-    setupOrthoCamera(w, h);
+    setupPerspectiveCamera(w, h);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(w, h);
+    // Ensure textures look correct
+    try { renderer.outputColorSpace = THREE.SRGBColorSpace; } catch { try { renderer.outputEncoding = THREE.sRGBEncoding; } catch { } }
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
@@ -285,11 +280,11 @@ export async function init3D(container, state, cb = {}) {
     mouse = new THREE.Vector2();
 
     // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.22));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.7);
     dir.position.set(6, 10, 4);
     scene.add(dir);
-    const rim = new THREE.DirectionalLight(0x88aaff, 0.3);
+    const rim = new THREE.DirectionalLight(0x88aaff, 0.25);
     rim.position.set(-6, 8, -6);
     scene.add(rim);
 
@@ -327,7 +322,7 @@ function onResize() {
     if (!renderer || !camera || !containerEl) return;
     const w = containerEl.clientWidth;
     const h = containerEl.clientHeight;
-    updateOrthoCamera(w, h);
+    updatePerspectiveCamera(w, h);
     renderer.setSize(w, h);
 }
 
@@ -353,6 +348,7 @@ export function update3D(state) {
     boardSize = state.board.length;
     lastStateRef = state;
     rebuildPieces(state);
+    updateHighlights(state);
     // Attempt to animate the last move (ghost tween)
     maybeStartMoveAnim(state);
 }
@@ -374,6 +370,7 @@ function rebuildPieces(state) {
             piecesGroup.add(m);
         }
     }
+    updateHighlights(state);
 }
 
 function animate() {
@@ -415,27 +412,80 @@ function boardWorldHalfSpan() {
     return full * 0.55; // 10% margin around (0.5 on each side approx)
 }
 
-function setupOrthoCamera(w, h) {
-    const aspect = (w || 1) / (h || 1);
-    const half = boardWorldHalfSpan();
-    const halfW = half * aspect;
-    camera = new THREE.OrthographicCamera(-halfW, halfW, half, -half, 0.1, 1000);
-    camera.position.set(0, 50, 0);
-    camera.up.set(0, 0, -1); // align +Z down the screen
-    camera.lookAt(0, 0, 0);
+// ---- 45° Perspective camera (angled "straight on") ----
+function setupPerspectiveCamera(w, h) {
+    const aspect = Math.max(0.1, (w || 1) / (h || 1));
+    const fov = 45; // vertical FOV
+    camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 2000);
+    positionAngleCamera(fov, aspect);
+}
+
+function updatePerspectiveCamera(w, h) {
+    if (!camera || !camera.isPerspectiveCamera) return setupPerspectiveCamera(w, h);
+    camera.aspect = Math.max(0.1, (w || 1) / (h || 1));
+    positionAngleCamera(camera.fov, camera.aspect);
     camera.updateProjectionMatrix();
 }
 
-function updateOrthoCamera(w, h) {
-    if (!camera || !camera.isOrthographicCamera) return setupOrthoCamera(w, h);
-    const aspect = (w || 1) / (h || 1);
+function positionAngleCamera(fov, aspect) {
     const half = boardWorldHalfSpan();
-    const halfW = half * aspect;
-    camera.left = -halfW;
-    camera.right = halfW;
-    camera.top = half;
-    camera.bottom = -half;
-    camera.updateProjectionMatrix();
+    // Fit a circle that bounds the board, then compute a distance for 45° pitch
+    const radius = half * Math.SQRT2; // diagonal half-span
+    const fovRad = THREE.MathUtils.degToRad(fov);
+    const distForFit = radius / Math.tan(fovRad / 2);
+    const tilt = Math.PI / 4; // 45° down tilt
+    const dist = distForFit * 1.1; // add margin
+    const y = Math.sin(tilt) * dist;
+    const z = Math.cos(tilt) * dist;
+    camera.position.set(0, y, z);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(0, 0, 0);
+}
+
+// ---- Highlights ----
+function updateHighlights(state) {
+    if (!highlightGroup) return;
+    highlightGroup.clear();
+    // Helper creators
+    const makeSquare = (color, alpha = 0.28) => {
+        const geo = new THREE.PlaneGeometry(tileSize * 0.96, tileSize * 0.96);
+        const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: alpha, depthWrite: false, depthTest: false });
+        const m = new THREE.Mesh(geo, mat);
+        m.rotation.x = -Math.PI / 2; // lay flat
+        m.position.y = 0.065;
+        return m;
+    };
+    const makeRing = (color, alpha = 0.95) => {
+        const geo = new THREE.RingGeometry(tileSize * 0.24, tileSize * 0.44, 32);
+        const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: alpha, depthWrite: false, depthTest: false });
+        const m = new THREE.Mesh(geo, mat);
+        m.rotation.x = -Math.PI / 2;
+        m.position.y = 0.07;
+        return m;
+    };
+    function placeAt(m, r, c) { const { x, z } = worldPos(r, c); m.position.x = x; m.position.z = z; highlightGroup.add(m); }
+
+    // Last move from/to
+    if (state.lastMove) {
+        const [fr, fc] = state.lastMove.from; const [tr, tc] = state.lastMove.to;
+        placeAt(makeSquare(0xffd166, 0.18), fr, fc);
+        placeAt(makeSquare(0xffd166, 0.26), tr, tc);
+    }
+    // Selected source
+    if (state.selected) {
+        placeAt(makeSquare(0x7c9cff, 0.22), state.selected.r, state.selected.c);
+    }
+    // Moves for selected
+    if (state.moves && state.moves.length) {
+        for (const m of state.moves) {
+            const c = m.capture ? 0xff6b6b : 0x2be1a7;
+            placeAt(makeRing(c, 0.9), m.r, m.c);
+        }
+    }
+    // Shielded piece
+    if (state.shielded) {
+        placeAt(makeRing(0x88c0ff, 0.95), state.shielded.r, state.shielded.c);
+    }
 }
 
 // ---- Move animation (ghost tween) ----
