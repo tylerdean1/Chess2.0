@@ -96,12 +96,36 @@ export function render() {
             }
 
             sq.addEventListener('click', () => onSquareClick(r, c));
+            sq.addEventListener('mouseenter', () => onSquareHover(r, c));
+            sq.addEventListener('mouseleave', () => clearHover());
             frag.appendChild(sq);
         });
     });
 
     turnLabel.textContent = state.turn === 'w' ? 'White' : 'Black';
     boardEl.appendChild(frag);
+}
+
+function clearHover() {
+    // Remove hover classes
+    boardEl.querySelectorAll('.sq.hov-move, .sq.hov-cap, .sq.hov-source').forEach(el => {
+        el.classList.remove('hov-move', 'hov-cap', 'hov-source');
+    });
+}
+
+function onSquareHover(r, c) {
+    clearHover();
+    const p = state.board[r][c];
+    if (!p) return;
+    // Preview legal moves for the piece regardless of whose turn it is
+    const list = legalMoves(state, r, c, p);
+    const src = boardEl.querySelector(`.sq[data-r="${r}"][data-c="${c}"]`);
+    if (src) src.classList.add('hov-source');
+    for (const m of list) {
+        const node = boardEl.querySelector(`.sq[data-r="${m.r}"][data-c="${m.c}"]`);
+        if (!node) continue;
+        node.classList.add(m.capture ? 'hov-cap' : 'hov-move');
+    }
 }
 
 function openUpgradePicker(r, c) {
@@ -288,8 +312,8 @@ if (startBtn) {
     startBtn.onclick = () => {
         const type = (modeCpu && modeCpu.checked) ? 'cpu' : 'pvp';
         const level = cpuLevel ? parseInt(cpuLevel.value, 10) : 5;
-    gameMode = { type, aiLevel: Math.max(1, Math.min(10, level || 5)) };
-    if (ingameCpuLevel && ingameCpuVal) { ingameCpuLevel.value = String(gameMode.aiLevel); ingameCpuVal.textContent = String(gameMode.aiLevel); }
+        gameMode = { type, aiLevel: Math.max(1, Math.min(10, level || 5)) };
+        if (ingameCpuLevel && ingameCpuVal) { ingameCpuLevel.value = String(gameMode.aiLevel); ingameCpuVal.textContent = String(gameMode.aiLevel); }
         state = initial(); history = []; flipped = false;
         hideLanding();
         render();

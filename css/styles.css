@@ -125,6 +125,26 @@ body {
     pointer-events: none;
 }
 
+/* Hover preview (non-committal) */
+.sq.hov-source {
+    outline: 3px solid rgba(255, 255, 0, .75);
+    outline-offset: -3px;
+}
+.sq.hov-move::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .45), 0 0 10px 1px rgba(255, 255, 255, .18);
+    pointer-events: none;
+}
+.sq.hov-cap::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 0 4px rgba(255, 92, 138, .6), 0 0 10px 1px rgba(255, 92, 138, .25);
+    pointer-events: none;
+}
+
 /* Shielded piece indicator */
 .sq.shield::after {
     content: "";
@@ -578,10 +598,23 @@ body {
 }
 
 /* Utility rows */
-.row.align-center { align-items: center; }
-.row.auto-left { margin-left: auto; }
-.inline-flex { display: inline-flex; gap: 6px; align-items: center; }
-.w-120 { width: 120px; }
+.row.align-center {
+    align-items: center;
+}
+
+.row.auto-left {
+    margin-left: auto;
+}
+
+.inline-flex {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.w-120 {
+    width: 120px;
+}
 
 .hd.top {
     border-top: 1px solid #202746;
