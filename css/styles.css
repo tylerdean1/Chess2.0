@@ -577,6 +577,12 @@ body {
     justify-content: flex-end;
 }
 
+/* Utility rows */
+.row.align-center { align-items: center; }
+.row.auto-left { margin-left: auto; }
+.inline-flex { display: inline-flex; gap: 6px; align-items: center; }
+.w-120 { width: 120px; }
+
 .hd.top {
     border-top: 1px solid #202746;
 }

@@ -17,6 +17,8 @@ const modePvp = document.getElementById('modePvp');
 const modeCpu = document.getElementById('modeCpu');
 const cpuLevel = document.getElementById('cpuLevel');
 const cpuLevelVal = document.getElementById('cpuLevelVal');
+const ingameCpuLevel = document.getElementById('ingameCpuLevel');
+const ingameCpuVal = document.getElementById('ingameCpuVal');
 const startBtn = document.getElementById('startBtn');
 const turnLabel = document.getElementById('turnLabel');
 const upgradeBack = document.getElementById('upgradeBack');
@@ -201,14 +203,26 @@ function moveSelectedTo(r, c, meta) {
                 p.u = clonedU;
                 log(`✨ ${colorName(p.col)} piece mimics ${PIECES[newType]} and transforms!`);
             }
-            // Open upgrade picker after potential transformation so options reflect new form
-            openUpgradePicker(r, c);
+            // Post-capture upgrade: if human, open picker; if AI, auto-pick
+            if (gameMode.type === 'cpu' && p.col === 'b') {
+                autoApplyUpgrade(p);
+                render();
+            } else {
+                openUpgradePicker(r, c);
+            }
         }
         // Shield trigger should be based on mover's pre-move type (stored in lastMove)
         const moverWasRoyal = state.lastMove && (state.lastMove.piece.t === 'K' || state.lastMove.piece.t === 'Q');
         if (moverWasRoyal) {
-            state.pendingShield = { owner: p.col };
-            log(`${colorName(p.col)} may select a friendly piece to gain Royal Immunity for one enemy turn.`);
+            if (gameMode.type === 'cpu' && p.col === 'b') {
+                // AI auto-selects a shield: prefer the moved piece; else the highest-value piece
+                const target = { r, c };
+                state.shielded = { r: target.r, c: target.c, owner: p.col, expiresOn: p.col };
+                log(`🤖 AI shields ${PIECES[p.t]} on ${algebra(target.r, target.c)} for one enemy turn.`);
+            } else {
+                state.pendingShield = { owner: p.col };
+                log(`${colorName(p.col)} may select a friendly piece to gain Royal Immunity for one enemy turn.`);
+            }
         }
     }
 
@@ -265,11 +279,17 @@ function aiTurn() {
 function showLanding() { if (landingBack) landingBack.style.display = 'flex'; }
 function hideLanding() { if (landingBack) landingBack.style.display = 'none'; }
 if (cpuLevel && cpuLevelVal) cpuLevel.addEventListener('input', () => cpuLevelVal.textContent = cpuLevel.value);
+if (ingameCpuLevel && ingameCpuVal) ingameCpuLevel.addEventListener('input', () => {
+    const v = Math.max(1, Math.min(10, parseInt(ingameCpuLevel.value || '5', 10)));
+    ingameCpuVal.textContent = String(v);
+    gameMode.aiLevel = v;
+});
 if (startBtn) {
     startBtn.onclick = () => {
         const type = (modeCpu && modeCpu.checked) ? 'cpu' : 'pvp';
         const level = cpuLevel ? parseInt(cpuLevel.value, 10) : 5;
-        gameMode = { type, aiLevel: Math.max(1, Math.min(10, level || 5)) };
+    gameMode = { type, aiLevel: Math.max(1, Math.min(10, level || 5)) };
+    if (ingameCpuLevel && ingameCpuVal) { ingameCpuLevel.value = String(gameMode.aiLevel); ingameCpuVal.textContent = String(gameMode.aiLevel); }
         state = initial(); history = []; flipped = false;
         hideLanding();
         render();
@@ -279,3 +299,24 @@ if (startBtn) {
 showLanding();
 render();
 log('Welcome to Chess 2.0! Choose a mode to begin.');
+
+// Heuristic for AI upgrade auto-pick
+function autoApplyUpgrade(p) {
+    if (!p?.u || (p.u.bank || 0) <= 0) return;
+    const opts = getUpgradeOptions(p);
+    if (!opts.length) { p.u.bank = Math.max(0, p.u.bank - 1); return; }
+    // Prioritize by type
+    const priority = {
+        P: ['P_MIMIC', 'P_DIAG', 'P_FWD', 'P_SIDE'],
+        N: ['N_BOTH', 'N_LONG', 'N_SHORT', 'N_22'],
+        B: ['B_ORTHO1', 'B_ORTHO_PLUS', 'B_JUMP'],
+        R: ['R_DIAG1', 'R_DIAG_PLUS', 'R_CHARGE'],
+        Q: ['Q_EXT', 'Q_KNIGHT', 'Q_CHAIN', 'Q_IMMUNE'],
+        K: ['K_STEP2', 'K_KNIGHT', 'K_IMMUNE']
+    };
+    const order = priority[p.t] || [];
+    const pick = opts.find(o => order.includes(o.key)) || opts[0];
+    applyUpgrade(p, pick.key);
+    p.u.bank = Math.max(0, (p.u.bank || 0) - 1);
+    log(`🤖 AI auto-upgraded ${PIECES[p.t]}: ${pick.title}`);
+}

@@ -52,8 +52,14 @@
         <div id="log" class="log"></div>
       </div>
       <div class="row right">
-        <button id="flip" class="btn subtle">Flip Board</button>
-        <button id="help" class="btn">Quick Tips</button>
+        <div class="row tight align-center auto-left">
+          <label class="pill inline-flex" for="ingameCpuLevel">AI
+            <input id="ingameCpuLevel" type="range" min="1" max="10" step="1" value="5" class="w-120">
+            <span id="ingameCpuVal" class="pill">5</span>
+          </label>
+          <button id="flip" class="btn subtle">Flip Board</button>
+          <button id="help" class="btn">Quick Tips</button>
+        </div>
       </div>
     </div>
   </div>

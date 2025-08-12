@@ -9,10 +9,15 @@ export function knightLegs(u) {
 }
 
 export function moveIsBlockedByAdjacencyImmunity(state, fromR, fromC, toR, toC, mover) {
+    // Blocks entering squares adjacent to an opposing royal that has Royal Circle.
+    // It should NOT grant a permanent shield to the royal itself, and should not block moving away.
     const opp = mover.col === 'w' ? 'b' : 'w';
     const royals = findPieces(state, k => (k.t === 'K' || k.t === 'Q') && k.col === opp && k.u.adjImmunity);
     for (const { r, c } of royals) {
-        if (Math.max(Math.abs(toR - r), Math.abs(toC - c)) === 1) return true;
+        // If destination is the royal's square, allow capture as usual (no adjacent rule applies to the royal square)
+        if (toR === r && toC === c) continue;
+        const chebyshev = Math.max(Math.abs(toR - r), Math.abs(toC - c));
+        if (chebyshev === 1) return true; // adjacent squares only
     }
     return false;
 }

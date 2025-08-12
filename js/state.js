@@ -5,7 +5,7 @@ export const UNICODE = {
     b: { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟' }
 };
 
-export let BOARD_SIZE = 10; // default 10x10
+export let BOARD_SIZE = 14; // default 14x14
 export const setBoardSize = n => { BOARD_SIZE = n; };
 export const inBounds = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
 export const filesStr = 'abcdefghijklmnopqrstuvwxyz';
