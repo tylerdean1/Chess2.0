@@ -3,7 +3,6 @@ import { BOARD_SIZE, PIECES, UNICODE, algebra, clone, colorName, initial } from 
 import { legalMoves } from './moves.js';
 import { applyUpgrade, getUpgradeOptions } from './upgrades.js';
 import { aiChooseMove } from './engine.js';
-import { aiChooseMove } from './engine.js';
 
 let flipped = false;
 let state = initial();
