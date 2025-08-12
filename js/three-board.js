@@ -3,7 +3,9 @@
 
 let THREE;
 let OBJLoader, MTLLoader;
+let OrbitControls;
 let scene, camera, renderer, raycaster, mouse;
+let controls;
 let boardGroup, piecesGroup, highlightGroup;
 let anim = null; // current animation state
 let lastAnimSig = null; // dedupe consecutive animations
@@ -11,6 +13,7 @@ let containerEl;
 let boardSize = 14; // will be reset from state
 let callbacks = { onSquareClick: null };
 let lastStateRef = null; // keep last state so we can refresh pieces after async loads
+let baseCameraDistance = 0; // for zoom limits
 
 // Asset cache: store loaded templates by type ('P','R','N','B','Q','K')
 const modelCache = new Map(); // type => Promise<{template: THREE.Group, desiredHeight:number}>
@@ -309,7 +312,9 @@ export async function init3D(container, state, cb = {}) {
         }
     }
 
-    // Mouse events
+    // Controls and mouse events
+    await ensureControls();
+    setupControls();
     renderer.domElement.addEventListener('mousemove', onMove);
     renderer.domElement.addEventListener('click', onClick);
     window.addEventListener('resize', onResize);
@@ -324,6 +329,7 @@ function onResize() {
     const h = containerEl.clientHeight;
     updatePerspectiveCamera(w, h);
     renderer.setSize(w, h);
+    controls && controls.update();
 }
 
 function onMove(e) {
@@ -391,6 +397,7 @@ function animate() {
             anim = null;
         }
     }
+    controls && controls.update();
     renderer && renderer.render(scene, camera);
 }
 
@@ -399,7 +406,10 @@ export function dispose3D() {
         renderer.domElement.removeEventListener('mousemove', onMove);
         renderer.domElement.removeEventListener('click', onClick);
         window.removeEventListener('resize', onResize);
+        window.removeEventListener('keydown', onShiftToggle);
+        window.removeEventListener('keyup', onShiftToggle);
     } catch { }
+    if (controls) { try { controls.dispose(); } catch { } controls = null; }
     renderer && renderer.dispose();
     scene = camera = renderer = null;
 }
@@ -440,6 +450,69 @@ function positionAngleCamera(fov, aspect) {
     camera.position.set(0, y, z);
     camera.up.set(0, 1, 0);
     camera.lookAt(0, 0, 0);
+    baseCameraDistance = dist;
+}
+
+async function ensureControls() {
+    if (OrbitControls) return;
+    const mod = await import('https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js');
+    OrbitControls = mod.OrbitControls;
+}
+
+function setupControls() {
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    // Allow rotate; we'll map it to middle-drag
+    controls.enableRotate = true;
+    controls.screenSpacePanning = true;
+    controls.minDistance = Math.max(1, baseCameraDistance * 0.55);
+    controls.maxDistance = baseCameraDistance * 3.0;
+    controls.zoomSpeed = 0.7;
+    controls.panSpeed = 0.7;
+    controls.target.set(0, 0, 0);
+    // Map: middle = rotate (default); Shift+middle = pan
+    try {
+        controls.mouseButtons = { LEFT: THREE.MOUSE.NONE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.NONE };
+        controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
+    } catch { }
+    controls.update();
+    // Clamp pan within board bounds
+    controls.addEventListener('change', clampPanWithinBounds);
+    // Toggle middle button action when Shift is held
+    window.addEventListener('keydown', onShiftToggle, { passive: true });
+    window.addEventListener('keyup', onShiftToggle, { passive: true });
+}
+
+function clampPanWithinBounds() {
+    if (!controls) return;
+    const half = boardWorldHalfSpan();
+    const bound = half * 0.95; // keep a small margin
+    const t = controls.target;
+    const ox = t.x, oz = t.z;
+    t.x = Math.max(-bound, Math.min(bound, t.x));
+    t.z = Math.max(-bound, Math.min(bound, t.z));
+    if (t.x !== ox || t.z !== oz) {
+        // shift camera position by same delta to preserve view offset
+        const dx = t.x - ox;
+        const dz = t.z - oz;
+        camera.position.x += dx;
+        camera.position.z += dz;
+    }
+}
+
+let shiftPanMode = false;
+function onShiftToggle(e) {
+    if (!controls) return;
+    const isDown = e.type === 'keydown';
+    if ((e.key === 'Shift' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')) {
+        if (shiftPanMode !== isDown) {
+            shiftPanMode = isDown;
+            try {
+                controls.mouseButtons.MIDDLE = isDown ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+            } catch { }
+        }
+    }
 }
 
 // ---- Highlights ----
