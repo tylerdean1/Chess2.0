@@ -37,7 +37,6 @@ export function getUpgradeOptions(p) {
             if (!u.hasKnight) opts.push({ key: 'Q_KNIGHT', title: `Add Knight Jump`, desc: `Gain standard knight jumps (2,1).` });
             else if (!u.extKnight) opts.push({ key: 'Q_EXT', title: `Extend Knight Jump (3,2)`, desc: `Knight jump becomes (3,2).` });
             opts.push({ key: 'Q_CHAIN', title: `Increase Knight Chain`, desc: `Chain up to ${Math.min(u.knightChain + 1, 5)} knight jumps per move.` });
-            if (!u.adjImmunity) opts.push({ key: 'Q_IMMUNE', title: `Royal Circle`, desc: `Opponents cannot move to squares adjacent to your Queen.` });
             break;
         }
         case 'K': {
@@ -66,7 +65,6 @@ export function applyUpgrade(p, key) {
         case 'Q_KNIGHT': u.hasKnight = true; break;
         case 'Q_EXT': u.extKnight = true; break;
         case 'Q_CHAIN': u.knightChain = Math.min(5, u.knightChain + 1); break;
-        case 'Q_IMMUNE': u.adjImmunity = true; break;
         case 'K_STEP2': u.maxStep = 2; break;
         case 'K_KNIGHT': u.hasKnight = true; break;
         case 'K_IMMUNE': u.adjImmunity = true; break;

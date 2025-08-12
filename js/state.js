@@ -35,11 +35,19 @@ export function initial(N = BOARD_SIZE) {
     const order = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'];
     const offset = Math.floor((N - order.length) / 2);
     for (let c = 0; c < N; c++) {
-        // Place pawns only on inner files, excluding the outer two files on each side (e.g., a,b and m,n on 14x14)
+        // Place pawns: inner files only, with special case to move files c and l (2 and N-3) to base rows
         const innerFile = c >= 2 && c <= N - 3;
+        const isC = c === 2; // 'c' file
+        const isL = c === (N - 3); // 'l' file on 14x14
         if (innerFile) {
-            board[1][c] = { t: 'P', col: 'b', u: baseUpgrades('P'), moved: false };
-            board[N - 2][c] = { t: 'P', col: 'w', u: baseUpgrades('P'), moved: false };
+            if (isC || isL) {
+                // Move these pawns to base rows to surround the royal house
+                if (!board[0][c]) board[0][c] = { t: 'P', col: 'b', u: baseUpgrades('P'), moved: false };
+                if (!board[N - 1][c]) board[N - 1][c] = { t: 'P', col: 'w', u: baseUpgrades('P'), moved: false };
+            } else {
+                board[1][c] = { t: 'P', col: 'b', u: baseUpgrades('P'), moved: false };
+                board[N - 2][c] = { t: 'P', col: 'w', u: baseUpgrades('P'), moved: false };
+            }
         }
         const oIdx = c - offset;
         if (oIdx >= 0 && oIdx < order.length) {

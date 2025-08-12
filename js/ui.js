@@ -1,59 +1,48 @@
-// Rendering, interactions, and modal management
+// Rendering, interactions, and modal management (3D-enabled with 2D fallback)
 import { BOARD_SIZE, PIECES, UNICODE, algebra, clone, colorName, initial } from './state.js';
 import { legalMoves } from './moves.js';
 import { applyUpgrade, getUpgradeOptions } from './upgrades.js';
 import { aiChooseMove } from './engine.js';
 import { buildPieceEl } from './svg.js';
+import { init3D, update3D, dispose3D } from './three-board.js';
 
-let flipped = false;
 let state = initial();
 let history = [];
+let gameMode = { type: 'pvp', aiLevel: 5 };
+let use3D = false; // toggled at game start if WebGL is available
 
-// Elements
-const logEl = document.getElementById('log');
+// Elements from current HTML
+const landingEl = document.getElementById('landing');
+const startPvpBtn = document.getElementById('start-pvp');
+const startAiBtn = document.getElementById('start-ai');
+const diffSlider = document.getElementById('difficulty');
+const diffVal = document.getElementById('difficultyVal');
+const gameEl = document.getElementById('game');
+const turnInfoEl = document.getElementById('turnInfo');
+const messageEl = document.getElementById('message');
 const boardEl = document.getElementById('board');
-// Landing elements
-const landingBack = document.getElementById('landingBack');
-const modePvp = document.getElementById('modePvp');
-const modeCpu = document.getElementById('modeCpu');
-const cpuLevel = document.getElementById('cpuLevel');
-const cpuLevelVal = document.getElementById('cpuLevelVal');
-const ingameCpuLevel = document.getElementById('ingameCpuLevel');
-const ingameCpuVal = document.getElementById('ingameCpuVal');
-const startBtn = document.getElementById('startBtn');
-const turnLabel = document.getElementById('turnLabel');
-const upgradeBack = document.getElementById('upgradeBack');
+const threeEl = document.getElementById('three-container');
+const upgradeModal = document.getElementById('upgradeModal');
 const upgradeOptions = document.getElementById('upgradeOptions');
-let gameMode = { type: 'pvp', aiLevel: 5 }; // 'pvp' | 'cpu'
-const newGameBtn = document.getElementById('newGame');
-const undoBtn = document.getElementById('undoBtn');
-const flipBtn = document.getElementById('flip');
-const helpBtn = document.getElementById('help');
-const closeModalBtn = document.getElementById('closeModal');
-const skipUpgradeBtn = document.getElementById('skipUpgrade');
+const upgradeClose = document.getElementById('upgradeClose');
+const gameoverEl = document.getElementById('gameover');
+const gameoverTitle = document.getElementById('gameoverTitle');
+const gameoverText = document.getElementById('gameoverText');
+const gameoverClose = document.getElementById('gameoverClose');
 
-export function log(msg) {
-    logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
+function log(msg) {
+    if (messageEl) messageEl.textContent = msg;
+    try { console.log('[Chess2]', msg); } catch { }
 }
 
-function levelClass(lv) {
-    if (lv >= 3) return 'lv3';
-    if (lv === 2) return 'lv2';
-    if (lv === 1) return 'lv1';
-    return '';
-}
-
-export function render() {
+function renderGrid() {
     boardEl.innerHTML = '';
     const frag = document.createDocumentFragment();
     const rows = [...Array(BOARD_SIZE).keys()];
     const cols = [...Array(BOARD_SIZE).keys()];
-    const orderRows = flipped ? rows.slice().reverse() : rows;
-    const orderCols = flipped ? cols.slice().reverse() : cols;
-
     boardEl.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, 1fr)`;
-    orderRows.forEach(r => {
-        orderCols.forEach(c => {
+    rows.forEach(r => {
+        cols.forEach(c => {
             const sq = document.createElement('div');
             const sqColor = (r + c) % 2 === 0 ? 'light' : 'dark';
             sq.className = `sq ${sqColor}`;
@@ -99,23 +88,33 @@ export function render() {
             frag.appendChild(sq);
         });
     });
-
-    turnLabel.textContent = state.turn === 'w' ? 'White' : 'Black';
     boardEl.appendChild(frag);
 }
 
+function render() {
+    if (turnInfoEl) turnInfoEl.textContent = state.turn === 'w' ? 'White to move' : 'Black to move';
+    if (use3D) {
+        if (threeEl) threeEl.classList.remove('hidden');
+        if (boardEl) boardEl.classList.add('hidden');
+        update3D(state);
+    } else {
+        if (threeEl) threeEl.classList.add('hidden');
+        if (boardEl) boardEl.classList.remove('hidden');
+        renderGrid();
+    }
+}
+
 function clearHover() {
-    // Remove hover classes
     boardEl.querySelectorAll('.sq.hov-move, .sq.hov-cap, .sq.hov-source').forEach(el => {
         el.classList.remove('hov-move', 'hov-cap', 'hov-source');
     });
 }
 
 function onSquareHover(r, c) {
+    if (use3D) return; // hover preview in 3D pending
     clearHover();
     const p = state.board[r][c];
     if (!p) return;
-    // Preview legal moves for the piece regardless of whose turn it is
     const list = legalMoves(state, r, c, p);
     const src = boardEl.querySelector(`.sq[data-r="${r}"][data-c="${c}"]`);
     if (src) src.classList.add('hov-source');
@@ -137,8 +136,8 @@ function openUpgradePicker(r, c) {
         el.addEventListener('click', () => {
             applyUpgrade(p, o.key);
             p.u.bank = Math.max(0, (p.u.bank || 0) - 1);
-            log(`⬆️ ${colorName(p.col)} ${PIECES[p.t]} upgraded: ${o.title}`);
-            closeModal(); render();
+            log(`${colorName(p.col)} ${PIECES[p.t]} upgraded: ${o.title}`);
+            closeUpgradeModal(); render();
         });
         upgradeOptions.appendChild(el);
     });
@@ -148,10 +147,10 @@ function openUpgradePicker(r, c) {
         el.innerHTML = `<h4>No upgrades available</h4><p>Bank your point for later.</p>`;
         upgradeOptions.appendChild(el);
     }
-    upgradeBack.style.display = 'flex';
+    upgradeModal.classList.remove('hidden');
 }
 
-function closeModal() { upgradeBack.style.display = 'none'; state.pendingUpgrade = null; }
+function closeUpgradeModal() { upgradeModal.classList.add('hidden'); state.pendingUpgrade = null; }
 
 function onSquareClick(r, c) {
     if (state.winner) return;
@@ -207,8 +206,20 @@ function moveSelectedTo(r, c, meta) {
         log(`${colorName(p.col)} ${PIECES[p.t]} captured ${colorName(captured.col)} ${PIECES[captured.t]} on ${algebra(r, c)} (+1 Upgrade Point)`);
         if (captured.t === 'K') {
             state.winner = p.col;
-            log(`🎉 ${colorName(p.col)} wins by capturing the King!`);
-            alert(`${colorName(p.col)} wins by capturing the King!`);
+            log(`${colorName(p.col)} wins by capturing the King!`);
+            if (gameoverEl && gameoverTitle && gameoverText) {
+                if (gameMode.type === 'pvp') {
+                    const winner = state.winner === 'w' ? 'White' : 'Black';
+                    gameoverTitle.textContent = `${winner} wins!`;
+                    gameoverText.textContent = `${winner} has captured the King.`;
+                } else {
+                    // vs Computer: speak to the human (White)
+                    const playerWon = state.winner === 'w';
+                    gameoverTitle.textContent = playerWon ? 'Congratulations, you win!' : 'You have been defeated.';
+                    gameoverText.textContent = playerWon ? 'Well played. The enemy King has fallen.' : 'Your King has been captured. Try a different strategy.';
+                }
+                gameoverEl.classList.remove('hidden');
+            }
         } else {
             // Pawn mimic transformation: if mimic is enabled, transform into captured piece and inherit its abilities
             if (p.u && p.u.mimic) {
@@ -223,7 +234,7 @@ function moveSelectedTo(r, c, meta) {
                 // Reverse only applies to pawns; drop it on non-pawns
                 if (newType !== 'P' && 'reverse' in clonedU) delete clonedU.reverse;
                 p.u = clonedU;
-                log(`✨ ${colorName(p.col)} piece mimics ${PIECES[newType]} and transforms!`);
+                log(`${colorName(p.col)} piece mimics ${PIECES[newType]} and transforms!`);
             }
             // Post-capture upgrade: if human, open picker; if AI, auto-pick
             if (gameMode.type === 'cpu' && p.col === 'b') {
@@ -240,7 +251,7 @@ function moveSelectedTo(r, c, meta) {
                 // AI auto-selects a shield: prefer the moved piece; else the highest-value piece
                 const target = { r, c };
                 state.shielded = { r: target.r, c: target.c, owner: p.col, expiresOn: p.col };
-                log(`🤖 AI shields ${PIECES[p.t]} on ${algebra(target.r, target.c)} for one enemy turn.`);
+                log(`AI shields ${PIECES[p.t]} on ${algebra(target.r, target.c)} for one enemy turn.`);
             } else {
                 state.pendingShield = { owner: p.col };
                 log(`${colorName(p.col)} may select a friendly piece to gain Royal Immunity for one enemy turn.`);
@@ -260,7 +271,7 @@ function moveSelectedTo(r, c, meta) {
     }
     render();
 
-    if (state.lastMove) {
+    if (!use3D && state.lastMove) {
         const [tr, tc] = state.lastMove.to;
         const node = boardEl.querySelector(`.sq[data-r="${tr}"][data-c="${tc}"]`);
         if (node) node.classList.add('attack-anim');
@@ -268,24 +279,26 @@ function moveSelectedTo(r, c, meta) {
     }
 }
 
-// Controls
-newGameBtn.onclick = () => { state = initial(); history = []; render(); log('New game started. White to move.'); };
-undoBtn.onclick = () => {
-    if (history.length === 0) { log('Nothing to undo.'); return; }
-    state = history.pop(); render(); log('Reverted one move.');
-};
-flipBtn.onclick = () => { flipped = !flipped; render(); };
-helpBtn.onclick = () => {
-    alert(`Quick Tips:
+// Landing controls and start flow
+if (diffSlider && diffVal) diffSlider.addEventListener('input', () => { diffVal.textContent = String(diffSlider.value); });
+if (upgradeClose) upgradeClose.addEventListener('click', () => closeUpgradeModal());
+if (gameoverClose) gameoverClose.addEventListener('click', () => { if (gameoverEl) gameoverEl.classList.add('hidden'); });
 
-• Click a piece to see its legal moves.
-• Yellow outline = selected piece; white ring = move; pink ring = capture.
-• After a capture, choose an upgrade. Or click "Bank (Skip)" to save the point.
-• Win condition (prototype): capture the opposing King.
-• Royal Circle (King/Queen): opponents cannot move to squares adjacent to that piece.
+function startGame(type, level) {
+    gameMode = { type, aiLevel: Math.max(1, Math.min(10, level || 5)) };
+    state = initial(); history = [];
+    if (landingEl) landingEl.classList.add('hidden');
+    if (gameEl) gameEl.classList.remove('hidden');
+    use3D = !!window.__WEBGL_OK__;
+    if (use3D && threeEl) {
+        init3D(threeEl, state, { onSquareClick: onSquareClick }).catch(() => { use3D = false; render(); });
+    }
+    render();
+    log(type === 'cpu' ? `Mode: vs Computer (difficulty ${gameMode.aiLevel}). White to move.` : 'Mode: Local PvP. White to move.');
+}
 
-Have fun!`);
-};
+if (startPvpBtn) startPvpBtn.onclick = () => startGame('pvp', 5);
+if (startAiBtn) startAiBtn.onclick = () => startGame('cpu', parseInt(diffSlider?.value || '5', 10));
 
 // AI turn (Black)
 function aiTurn() {
@@ -297,30 +310,10 @@ function aiTurn() {
     moveSelectedTo(mv.to[0], mv.to[1], mv.meta);
 }
 
-// Landing boot
-function showLanding() { if (landingBack) landingBack.style.display = 'flex'; }
-function hideLanding() { if (landingBack) landingBack.style.display = 'none'; }
-if (cpuLevel && cpuLevelVal) cpuLevel.addEventListener('input', () => cpuLevelVal.textContent = cpuLevel.value);
-if (ingameCpuLevel && ingameCpuVal) ingameCpuLevel.addEventListener('input', () => {
-    const v = Math.max(1, Math.min(10, parseInt(ingameCpuLevel.value || '5', 10)));
-    ingameCpuVal.textContent = String(v);
-    gameMode.aiLevel = v;
-});
-if (startBtn) {
-    startBtn.onclick = () => {
-        const type = (modeCpu && modeCpu.checked) ? 'cpu' : 'pvp';
-        const level = cpuLevel ? parseInt(cpuLevel.value, 10) : 5;
-        gameMode = { type, aiLevel: Math.max(1, Math.min(10, level || 5)) };
-        if (ingameCpuLevel && ingameCpuVal) { ingameCpuLevel.value = String(gameMode.aiLevel); ingameCpuVal.textContent = String(gameMode.aiLevel); }
-        state = initial(); history = []; flipped = false;
-        hideLanding();
-        render();
-        log(type === 'cpu' ? `Mode: vs Computer (difficulty ${gameMode.aiLevel}). White to move.` : 'Mode: Local PvP. White to move.');
-    };
-}
-showLanding();
-render();
-log('Welcome to Chess 2.0! Choose a mode to begin.');
+// Initial landing
+if (landingEl) landingEl.classList.remove('hidden');
+if (gameEl) gameEl.classList.add('hidden');
+if (diffVal && diffSlider) diffVal.textContent = String(diffSlider.value || '3');
 
 // Heuristic for AI upgrade auto-pick
 function autoApplyUpgrade(p) {
@@ -330,15 +323,15 @@ function autoApplyUpgrade(p) {
     // Prioritize by type
     const priority = {
         P: ['P_MIMIC', 'P_DIAG', 'P_FWD', 'P_SIDE'],
-        N: ['N_BOTH', 'N_LONG', 'N_SHORT', 'N_22'],
+        N: ['N_FLEX', 'N_22'],
         B: ['B_ORTHO1', 'B_ORTHO_PLUS', 'B_JUMP'],
         R: ['R_DIAG1', 'R_DIAG_PLUS', 'R_CHARGE'],
-        Q: ['Q_EXT', 'Q_KNIGHT', 'Q_CHAIN', 'Q_IMMUNE'],
+        Q: ['Q_EXT', 'Q_KNIGHT', 'Q_CHAIN'],
         K: ['K_STEP2', 'K_KNIGHT', 'K_IMMUNE']
     };
     const order = priority[p.t] || [];
     const pick = opts.find(o => order.includes(o.key)) || opts[0];
     applyUpgrade(p, pick.key);
     p.u.bank = Math.max(0, (p.u.bank || 0) - 1);
-    log(`🤖 AI auto-upgraded ${PIECES[p.t]}: ${pick.title}`);
+    log(`AI auto-upgraded ${PIECES[p.t]}: ${pick.title}`);
 }

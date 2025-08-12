@@ -20,7 +20,7 @@ export function moveIsBlockedByAdjacencyImmunity(state, fromR, fromC, toR, toC, 
     // Blocks entering squares adjacent to an opposing royal that has Royal Circle.
     // It should NOT grant a permanent shield to the royal itself, and should not block moving away.
     const opp = mover.col === 'w' ? 'b' : 'w';
-    const royals = findPieces(state, k => (k.t === 'K' || k.t === 'Q') && k.col === opp && k.u.adjImmunity);
+    const royals = findPieces(state, k => (k.t === 'K') && k.col === opp && k.u.adjImmunity);
     for (const { r, c } of royals) {
         // If destination is the royal's square, allow capture as usual (no adjacent rule applies to the royal square)
         if (toR === r && toC === c) continue;

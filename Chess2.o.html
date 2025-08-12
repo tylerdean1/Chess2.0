@@ -8,106 +8,145 @@
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
 
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chess 2.0</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    /* Minimal 3D container style (kept here to avoid CSS reflow if file missing) */
+    #three-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #three-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <script>
+    // Feature detect WebGL for fall back to 2D grid if not supported
+    window.__WEBGL_OK__ = (function () {
+      try {
+        const c = document.createElement('canvas');
+        return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
+      } catch { return false; }
+    })();
+  </script>
+
+</head>
+
 <body>
-  <div class="app">
-    <div class="panel">
-      <div class="header">
-        <h1>Chess 2.0</h1>
-        <div class="turn"><span id="turnLabel">White</span> to move</div>
-      </div>
-      <div id="board" class="board" aria-label="Chess board"></div>
-      <div class="footer">
-        <div class="legend">
-          <span class="pill"><span class="dot move"></span>Move</span>
-          <span class="pill"><span class="dot cap"></span>Capture</span>
-          <span class="pill"><span class="dot shield"></span>Shielded</span>
-        </div>
-        <div class="row">
-          <button id="newGame" class="btn subtle">New Game</button>
-          <button id="undoBtn" class="btn subtle">Undo</button>
-        </div>
-      </div>
+  <div id="landing" class="landing">
+    <div class="tile" id="tile-pvp">
+      <h2>Local PvP</h2>
+      <button id="start-pvp">Start</button>
     </div>
-    <div class="panel side">
-      <div class="sec">
-        <h3>How it Works</h3>
-        <div class="text-small">
-          Standard chess movement, but <b>when you capture</b>, that piece gains an <b>Upgrade Point</b>. Spend it
-          immediately to evolve its movement. Pieces glow as they level up, and a golden badge shows the level.
-        </div>
+    <div class="tile" id="tile-ai">
+      <h2>Play vs Computer</h2>
+      <div class="slider-row">
+        <label for="difficulty">Difficulty</label>
+        <input id="difficulty" type="range" min="1" max="10" value="3" />
+        <span id="difficultyVal">3</span>
       </div>
-      <div class="sec">
-        <h3>Upgrades (Summary)</h3>
-        <ul class="ul-summary">
-          <li><b>Pawn</b> ➜ extend <i>forward</i> or <i>diagonal</i> range (+1 each level).</li>
-          <li><b>Knight</b> ➜ + (2,2); then extend one leg; then both legs per level.</li>
-          <li><b>Bishop</b> ➜ +1 orthogonal per level; (opt) Diagonal Jump.</li>
-          <li><b>Rook</b> ➜ +1 diagonal per level; (opt) Rook Charge.</li>
-          <li><b>Queen</b> ➜ knight jump; then (3,2) jump; chain knight jumps; (opt) Royal Circle.</li>
-          <li><b>King</b> ➜ 2‑step any dir; +1 knight jump; Royal Circle (no adjacent entry).</li>
-        </ul>
-      </div>
-      <div class="sec">
-        <h3>Event Log</h3>
-        <div id="log" class="log"></div>
-      </div>
-      <div class="row right">
-        <button id="flip" class="btn subtle">Flip Board</button>
-        <button id="help" class="btn">Quick Tips</button>
-      </div>
+      <button id="start-ai">Start</button>
     </div>
   </div>
-
-  <!-- Upgrade Modal -->
-  <div id="upgradeBack" class="modal-back">
-    <div class="modal" role="dialog" aria-modal="true">
-      <div class="hd">
-        <h2>Choose an Upgrade</h2>
-        <button id="closeModal" class="btn subtle">Close</button>
+  <div id="game" class="game hidden">
+    <div class="hud">
+      <div id="turnInfo"></div>
+      <div id="message"></div>
+    </div>
+    <div id="boardShell" class="board-shell">
+      <div id="board" class="board"></div>
+      <div id="three-container" class="hidden"></div>
+    </div>
+    <div id="upgradeModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>Choose an upgrade</h3>
+        <div id="upgradeOptions" class="upgrade-options"></div>
+        <button id="upgradeClose">Close</button>
       </div>
-      <div id="upgradeOptions" class="options"></div>
-      <div class="hd top">
-        <div class="tip">Tip: Upgrades apply to this piece only.</div>
-        <div class="row">
-          <button id="skipUpgrade" class="btn subtle">Bank (Skip)</button>
+    </div>
+    <div id="gameover" class="modal hidden">
+      <div class="modal-content center">
+        <h2 id="gameoverTitle">Game Over</h2>
+        <p id="gameoverText"></p>
+        <div class="row right">
+          <button id="gameoverClose">OK</button>
         </div>
       </div>
     </div>
   </div>
+  <script type="module" src="js/ui.js"></script>
+</body>
 
-  <!-- Landing / Mode Selection -->
-  <div id="landingBack" class="landing-back">
-    <div class="landing-card">
-      <h1>Chess 2.0</h1>
-      <p class="subtitle">Choose how you want to play</p>
-      <div class="mode-grid">
-        <label class="mode-option">
-          <input type="radio" name="mode" id="modePvp" value="pvp" checked>
-          <div class="mode-tile">
-            <div class="mode-title">Local PvP</div>
-            <div class="mode-desc">Two players on the same device.</div>
+</html>
+<div id="log" class="log"></div>
+</div>
+<div class="row right">
+  <button id="flip" class="btn subtle">Flip Board</button>
+  <button id="help" class="btn">Quick Tips</button>
+</div>
+</div>
+</div>
+
+<!-- Upgrade Modal -->
+<div id="upgradeBack" class="modal-back">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="hd">
+      <h2>Choose an Upgrade</h2>
+      <button id="closeModal" class="btn subtle">Close</button>
+    </div>
+    <div id="upgradeOptions" class="options"></div>
+    <div class="hd top">
+      <div class="tip">Tip: Upgrades apply to this piece only.</div>
+      <div class="row">
+        <button id="skipUpgrade" class="btn subtle">Bank (Skip)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Landing / Mode Selection -->
+<div id="landingBack" class="landing-back">
+  <div class="landing-card">
+    <h1>Chess 2.0</h1>
+    <p class="subtitle">Choose how you want to play</p>
+    <div class="mode-grid">
+      <label class="mode-option">
+        <input type="radio" name="mode" id="modePvp" value="pvp" checked>
+        <div class="mode-tile">
+          <div class="mode-title">Local PvP</div>
+          <div class="mode-desc">Two players on the same device.</div>
+        </div>
+      </label>
+      <label class="mode-option">
+        <input type="radio" name="mode" id="modeCpu" value="cpu">
+        <div class="mode-tile">
+          <div class="mode-title">Play vs Computer</div>
+          <div class="mode-desc">You vs AI. Choose difficulty.</div>
+          <div class="row tight">
+            <input id="cpuLevel" type="range" min="1" max="10" step="1" value="5">
+            <span id="cpuLevelVal" class="pill">5</span>
           </div>
-        </label>
-        <label class="mode-option">
-          <input type="radio" name="mode" id="modeCpu" value="cpu">
-          <div class="mode-tile">
-            <div class="mode-title">Play vs Computer</div>
-            <div class="mode-desc">You vs AI. Choose difficulty.</div>
-            <div class="row tight">
-              <input id="cpuLevel" type="range" min="1" max="10" step="1" value="5">
-              <span id="cpuLevelVal" class="pill">5</span>
-            </div>
-          </div>
-        </label>
-      </div>
-      <div class="row right">
-        <button id="startBtn" class="btn">Start Game</button>
-      </div>
-      <div class="note">AI plays Black by default.</div>
+        </div>
+      </label>
     </div>
+    <div class="row right">
+      <button id="startBtn" class="btn">Start Game</button>
+    </div>
+    <div class="note">AI plays Black by default.</div>
   </div>
+</div>
 
-  <script type="module" src="./js/ui.js"></script>
+<script type="module" src="./js/ui.js"></script>
 </body>
 
 </html>

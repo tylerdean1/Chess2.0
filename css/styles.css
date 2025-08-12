@@ -463,6 +463,23 @@ body {
     overflow: hidden
 }
 
+.modal .modal-content.center {
+    text-align: center;
+    padding: 18px;
+}
+
+#gameoverTitle {
+    margin: 6px 0 8px 0;
+    font-size: 20px;
+    letter-spacing: .02em;
+}
+
+#gameoverText {
+    margin: 0 0 12px 0;
+    color: #aab9d9;
+    font-size: 14px;
+}
+
 .modal .hd {
     display: flex;
     align-items: center;
@@ -718,4 +735,19 @@ body {
 .coord.file {
     right: 4px;
     bottom: 4px;
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}
+
+/* Container to host either 2D grid or 3D canvas with stable sizing */
+.board-shell {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    min-width: 320px;
+    height: 560px;
+    max-height: 95vw;
 }
