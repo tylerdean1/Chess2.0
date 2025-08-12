@@ -1,8 +1,12 @@
 {
+    "version": 2,
+    "builds": [
+        { "src": "index.html", "use": "@vercel/static" },
+        { "src": "Chess2.o.html", "use": "@vercel/static" },
+        { "src": "css/**", "use": "@vercel/static" },
+        { "src": "js/**", "use": "@vercel/static" }
+    ],
     "rewrites": [
-        {
-            "source": "/",
-            "destination": "/Chess2.o.html"
-        }
+        { "source": "/", "destination": "/Chess2.o.html" }
     ]
 }
