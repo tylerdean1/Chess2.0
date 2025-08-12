@@ -1,5 +1,8 @@
 {
-  "rewrites": [
-    { "source": "/", "destination": "/Chess2.o.html" }
-  ]
+    "rewrites": [
+        {
+            "source": "/",
+            "destination": "/Chess2.o.html"
+        }
+    ]
 }
