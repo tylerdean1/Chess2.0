@@ -399,6 +399,51 @@ body {
     color: #aab9d9
 }
 
+/* Utility */
+.hidden {
+    display: none !important;
+}
+
+/* Layout: center the game and scale board area with viewport */
+.game {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.hud {
+    width: min(92vmin, 900px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #dce3f4;
+    padding: 0 4px;
+}
+
+/* Container to host either 2D grid or 3D canvas; always square */
+.board-shell {
+    position: relative;
+    width: min(92vmin, 900px);
+    height: min(92vmin, 900px);
+    margin: 0 auto;
+}
+
+.board-shell>#three-container,
+.board-shell>.board {
+    position: absolute;
+    inset: 0;
+}
+
+/* Make 2D grid fill the shell when visible */
+.board {
+    width: 100%;
+    height: 100%;
+}
+
 .btn {
     appearance: none;
     background: linear-gradient(180deg, #7c9cff, #547bff);

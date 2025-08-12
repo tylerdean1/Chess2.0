@@ -137,8 +137,10 @@ export async function init3D(container, state, cb = {}) {
     scene.background = new THREE.Color(0x0b1020);
     const w = container.clientWidth || 800;
     const h = container.clientHeight || 800;
-    camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 100);
-    camera.position.set(6, 9.5, 8);
+    camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 200);
+    // Position to see the whole board; distance scales with board size
+    const dist = Math.max(10, boardSize * 0.9);
+    camera.position.set(dist * 0.55, dist, dist * 0.55);
     camera.lookAt(0, 0, 0);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });

@@ -3,25 +3,18 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chess 2.0</title>
-  <link rel="stylesheet" href="./css/styles.css" />
-</head>
-
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Chess 2.0</title>
   <link rel="stylesheet" href="css/styles.css" />
   <style>
-    /* Minimal 3D container style (kept here to avoid CSS reflow if file missing) */
-    #three-container {
+    /* Ensure the 3D container stretches when active */
+    #boardShell {
       position: relative;
-      width: 100%;
-      height: 100%;
+    }
+
+    #three-container {
+      position: absolute;
+      inset: 0;
     }
 
     #three-container canvas {
@@ -31,12 +24,12 @@
     }
   </style>
   <script>
-    // Feature detect WebGL for fall back to 2D grid if not supported
+    // WebGL feature detect for 3D mode fallback
     window.__WEBGL_OK__ = (function () {
       try {
-        const c = document.createElement('canvas');
+        var c = document.createElement('canvas');
         return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
-      } catch { return false; }
+      } catch (e) { return false; }
     })();
   </script>
 
@@ -58,6 +51,7 @@
       <button id="start-ai">Start</button>
     </div>
   </div>
+
   <div id="game" class="game hidden">
     <div class="hud">
       <div id="turnInfo"></div>
@@ -67,6 +61,7 @@
       <div id="board" class="board"></div>
       <div id="three-container" class="hidden"></div>
     </div>
+
     <div id="upgradeModal" class="modal hidden">
       <div class="modal-content">
         <h3>Choose an upgrade</h3>
@@ -74,6 +69,7 @@
         <button id="upgradeClose">Close</button>
       </div>
     </div>
+
     <div id="gameover" class="modal hidden">
       <div class="modal-content center">
         <h2 id="gameoverTitle">Game Over</h2>
@@ -84,69 +80,8 @@
       </div>
     </div>
   </div>
+
   <script type="module" src="js/ui.js"></script>
-</body>
-
-</html>
-<div id="log" class="log"></div>
-</div>
-<div class="row right">
-  <button id="flip" class="btn subtle">Flip Board</button>
-  <button id="help" class="btn">Quick Tips</button>
-</div>
-</div>
-</div>
-
-<!-- Upgrade Modal -->
-<div id="upgradeBack" class="modal-back">
-  <div class="modal" role="dialog" aria-modal="true">
-    <div class="hd">
-      <h2>Choose an Upgrade</h2>
-      <button id="closeModal" class="btn subtle">Close</button>
-    </div>
-    <div id="upgradeOptions" class="options"></div>
-    <div class="hd top">
-      <div class="tip">Tip: Upgrades apply to this piece only.</div>
-      <div class="row">
-        <button id="skipUpgrade" class="btn subtle">Bank (Skip)</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Landing / Mode Selection -->
-<div id="landingBack" class="landing-back">
-  <div class="landing-card">
-    <h1>Chess 2.0</h1>
-    <p class="subtitle">Choose how you want to play</p>
-    <div class="mode-grid">
-      <label class="mode-option">
-        <input type="radio" name="mode" id="modePvp" value="pvp" checked>
-        <div class="mode-tile">
-          <div class="mode-title">Local PvP</div>
-          <div class="mode-desc">Two players on the same device.</div>
-        </div>
-      </label>
-      <label class="mode-option">
-        <input type="radio" name="mode" id="modeCpu" value="cpu">
-        <div class="mode-tile">
-          <div class="mode-title">Play vs Computer</div>
-          <div class="mode-desc">You vs AI. Choose difficulty.</div>
-          <div class="row tight">
-            <input id="cpuLevel" type="range" min="1" max="10" step="1" value="5">
-            <span id="cpuLevelVal" class="pill">5</span>
-          </div>
-        </div>
-      </label>
-    </div>
-    <div class="row right">
-      <button id="startBtn" class="btn">Start Game</button>
-    </div>
-    <div class="note">AI plays Black by default.</div>
-  </div>
-</div>
-
-<script type="module" src="./js/ui.js"></script>
 </body>
 
 </html>
