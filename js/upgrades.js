@@ -17,11 +17,8 @@ export function getUpgradeOptions(p) {
             if (!u.hasDiag22) {
                 opts.push({ key: 'N_22', title: `Add (2,2) Jump`, desc: `Gain an extra diagonal leap of (2,2).` });
             }
-            opts.push({ key: 'N_LONG', title: `Extend Long Leg +1`, desc: `Your L-shape becomes (${u.longLeg + 1}, ${u.shortLeg}).` });
-            opts.push({ key: 'N_SHORT', title: `Extend Short Leg +1`, desc: `Your L-shape becomes (${u.longLeg}, ${u.shortLeg + 1}).` });
-            if (u.longLeg > 2 || u.shortLeg > 1) {
-                opts.push({ key: 'N_BOTH', title: `Reinforce Both Legs`, desc: `Increase both legs by +1 ➜ (${u.longLeg + 1}, ${u.shortLeg + 1}).` });
-            }
+            const nextFlex = (u.knFlex || 0) + 1;
+            opts.push({ key: 'N_FLEX', title: `Knight Flex +1`, desc: `Increase L-range flexibility to allow combos like (${2 + nextFlex},1), (${2 + nextFlex - 1},${1 + 1}), … totaling +${nextFlex}.` });
             break;
         }
         case 'B': {
@@ -59,9 +56,7 @@ export function applyUpgrade(p, key) {
         case 'P_FWD': u.forwardRange += 1; break;
         case 'P_DIAG': u.diagRange += 1; break;
         case 'N_22': u.hasDiag22 = true; break;
-        case 'N_LONG': u.longLeg += 1; break;
-        case 'N_SHORT': u.shortLeg += 1; break;
-        case 'N_BOTH': u.longLeg += 1; u.shortLeg += 1; break;
+        case 'N_FLEX': u.knFlex = (u.knFlex || 0) + 1; break;
         case 'B_ORTHO1': u.orthoRange = 1; break;
         case 'B_ORTHO_PLUS': u.orthoRange = Math.min(7, u.orthoRange + 1); break;
         case 'B_ORTHO_FULL': u.orthoFull = true; break;

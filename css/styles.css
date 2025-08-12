@@ -13,6 +13,14 @@
     --blue: #63a4ff;
     --violet: #b086ff;
     --teal: #31d0c6;
+
+    /* Token palettes */
+    --w-edge: #f6f8ff;
+    --w-mid: #cfd9ff;
+    --w-spec: #ffffff;
+    --b-edge: #3b466d;
+    --b-mid: #222844;
+    --b-spec: #6a78b0;
 }
 
 html,
@@ -174,7 +182,7 @@ body {
     filter: brightness(1.04);
 }
 
-.piece {
+.piece.wrap {
     position: relative;
     line-height: 1;
     filter: drop-shadow(0 2px 1px rgba(0, 0, 0, .5));
@@ -229,18 +237,79 @@ body {
     -webkit-text-stroke: 0.6px rgba(0, 0, 0, .22);
 }
 
-.piece.w {
-    color: #111318;
-    background: linear-gradient(180deg, rgba(255, 255, 255, .65), rgba(255, 255, 255, 0));
-    -webkit-background-clip: text;
-    background-clip: text;
+/* SVG token styling */
+.piece-svg {
+    width: 84%;
+    height: 84%;
 }
 
-.piece.b {
-    color: #f4f7fb;
-    background: linear-gradient(180deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0));
-    -webkit-background-clip: text;
-    background-clip: text;
+.piece-svg .spec {
+    fill: rgba(255, 255, 255, .25);
+    filter: blur(.4px);
+}
+
+.piece-svg .rim {
+    stroke: rgba(0, 0, 0, .45);
+    stroke-width: 1.5;
+}
+
+.piece-svg .inner {
+    fill: rgba(255, 255, 255, .04);
+    stroke: rgba(0, 0, 0, .35);
+    stroke-width: 1;
+}
+
+.piece-svg .ring {
+    fill: none;
+    stroke: rgba(255, 255, 255, .06);
+    stroke-width: 3;
+}
+
+.piece-svg .glyph {
+    font-weight: 900;
+    font-size: 44px;
+    fill: #0d1018;
+    filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .35));
+}
+
+.piece-svg .chev {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.2;
+    opacity: .9;
+}
+
+.team-w {
+    --coin-edge: var(--w-edge);
+    --coin-mid: var(--w-mid);
+    --coin-spec: var(--w-spec);
+}
+
+.team-b {
+    --coin-edge: var(--b-edge);
+    --coin-mid: var(--b-mid);
+    --coin-spec: var(--b-spec);
+}
+
+/* Tier emphasis */
+.tier-0 .ring {
+    stroke: rgba(255, 255, 255, .04);
+}
+
+.tier-1 .ring {
+    stroke: rgba(124, 156, 255, .6);
+}
+
+.tier-2 .ring {
+    stroke: rgba(43, 225, 167, .7);
+}
+
+.tier-3 .ring,
+.tier-4 .ring,
+.tier-5 .ring {
+    stroke: rgba(255, 209, 102, .9);
+    stroke-width: 4;
+    filter: drop-shadow(0 2px 6px rgba(255, 209, 102, .35));
 }
 
 /* Evolution aura by level */

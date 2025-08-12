@@ -3,6 +3,7 @@ import { BOARD_SIZE, PIECES, UNICODE, algebra, clone, colorName, initial } from 
 import { legalMoves } from './moves.js';
 import { applyUpgrade, getUpgradeOptions } from './upgrades.js';
 import { aiChooseMove } from './engine.js';
+import { buildPieceEl } from './svg.js';
 
 let flipped = false;
 let state = initial();
@@ -70,14 +71,11 @@ export function render() {
 
             const p = state.board[r][c];
             if (p) {
-                const el = document.createElement('div');
-                el.className = `piece ${p.col} ${levelClass(p.u.level)} shape-${p.t.toLowerCase()} lv-${p.u.level || 0}`;
-                el.textContent = UNICODE[p.col][p.t];
-                const badge = document.createElement('div');
-                badge.className = 'badge'; badge.textContent = p.u.level || '';
-                if ((p.u.level || 0) === 0) badge.style.display = 'none';
-                el.appendChild(badge);
-                sq.appendChild(el);
+                const wrap = document.createElement('div');
+                wrap.className = `piece wrap lv-${p.u.level || 0}`;
+                const svg = buildPieceEl(p);
+                wrap.appendChild(svg);
+                sq.appendChild(wrap);
             }
 
             if (state.shielded && state.shielded.r === r && state.shielded.c === c) sq.classList.add('shield');

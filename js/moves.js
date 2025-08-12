@@ -2,9 +2,17 @@
 import { BOARD_SIZE, inBounds, algebra, findPieces } from './state.js';
 
 export function knightLegs(u) {
+    // Base is (2,1); allow flexible increments up to knFlex steps distributed between legs.
+    const baseA = 2, baseB = 1;
+    const flex = Math.max(0, u.knFlex || 0);
     const set = new Set();
-    set.add(u.longLeg + ',' + u.shortLeg);
-    set.add(u.shortLeg + ',' + u.longLeg);
+    for (let incA = 0; incA <= flex; incA++) {
+        const incB = flex - incA;
+        const a = baseA + incA;
+        const b = baseB + incB;
+        set.add(a + ',' + b);
+        set.add(b + ',' + a);
+    }
     return [...set].map(s => s.split(',').map(Number));
 }
 

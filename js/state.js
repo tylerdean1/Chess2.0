@@ -22,7 +22,7 @@ export const colorName = c => c === 'w' ? 'White' : 'Black';
 export function baseUpgrades(type) {
     switch (type) {
         case 'P': return { level: 0, bank: 0, forwardRange: 1, diagRange: 1, sideStep: false, reverse: false, mimic: false };
-        case 'N': return { level: 0, bank: 0, longLeg: 2, shortLeg: 1, hasDiag22: false };
+        case 'N': return { level: 0, bank: 0, longLeg: 2, shortLeg: 1, hasDiag22: false, knFlex: 0 };
         case 'B': return { level: 0, bank: 0, orthoRange: 0, orthoFull: false, diagJump: false };
         case 'R': return { level: 0, bank: 0, diagRange: 0, diagFull: false, charge: false };
         case 'Q': return { level: 0, bank: 0, hasKnight: false, extKnight: false, knightChain: 0, adjImmunity: false };
